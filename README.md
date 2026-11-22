@@ -70,6 +70,31 @@ The main menu provides the following options:
 4. Complete exercises in the automatically created `rendu` folder
 5. Use the practice environment to simulate real exam conditions
 
+## 🎮 Exam Quest (memory trainer)
+
+A gamified GUI for committing the exam answers to memory. Currently covers **Rank 03**.
+
+```bash
+make game
+```
+
+(or just open `game/index.html` in a browser — no server or dependencies needed.)
+
+Each solution is split into small blocks, and every block is drilled in four modes of rising difficulty:
+
+| Mode | What you do |
+|------|-------------|
+| **Order** | Pick the shuffled lines in the right order |
+| **Gaps** | Fill in ~35% of the tokens |
+| **Gaps+** | Fill in ~70% of the tokens |
+| **Recall** | Type every line from memory (spacing is free, tokens must match) |
+
+Then a **Boss fight** per exercise: the whole file from memory. You earn XP, combos, stars and a daily streak, and blocks you have recalled come back as spaced-repetition **reviews**. Progress is stored in the browser (`localStorage`).
+
+While you train, a **Logic** box at the bottom explains the program in plain words: it hints at what the next line has to do, and once you get it right it shows what that step was for. The **Logic** tab of each exercise shows the whole walkthrough next to the code.
+
+The reference solutions live in `game/solutions/` (`//# id | Title` markers split them into blocks, `| given` marks code the exam hands out, `//! goal` and `//? step || why` lines hold the logic notes). After editing them, run `node game/build.js` to regenerate `game/data.js`.
+
 ## 📝 Workspace
 
 The shell automatically creates a `rendu` folder where you can:
