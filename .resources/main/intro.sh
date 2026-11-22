@@ -41,7 +41,13 @@ case $opt in
         ;;
     7)
         cd ../../rendu
-        open .
+        if command -v xdg-open &> /dev/null; then
+            xdg-open .
+        elif command -v open &> /dev/null; then
+            open .
+        else
+            echo "Current directory: $(pwd)"
+        fi
         cd ../.resources/main
         bash menu.sh
         exit 1

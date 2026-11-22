@@ -152,7 +152,7 @@ fi
                 cd ../../../../
                 if [ -d rendu ]; then
                     mkdir -p trace
-                    cp -r rendu "trace/rendu_backup_$(date +%s)"
+                    cp -r rendu "trace/rendu_backup_$(date +%Y%m%d%H%M%S)"
                     rm -rf rendu
                 fi
                 cd .resources/main
@@ -163,7 +163,7 @@ fi
                 cd ../../../../
                 if [ -d rendu ]; then
                     mkdir -p trace
-                    cp -r rendu "trace/rendu_backup_$(date +%s)"
+                    cp -r rendu "trace/rendu_backup_$(date +%Y%m%d%H%M%S)"
                     rm -rf rendu
                 fi
                 exit 1
