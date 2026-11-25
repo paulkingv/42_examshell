@@ -129,8 +129,11 @@ for (const rank of DATA.ranks) for (const level of rank.levels) for (const ex of
 	EXS[ex.id] = ex;
 	for (const c of ex.chunks) {
 		c.model = c.lines.map(lineModel);
-		c.model.forEach((l, i) => { l.note = c.notes[i]; l.chunk = c; });
-		c.steps = c.model.filter((l) => l.note);
+		// ctx: unchanged exam code (shown, never drilled); chg: a line that has to be fixed
+		c.model.forEach((l, i) => { l.note = c.notes[i]; l.chunk = c; l.ctx = c.ctx[i]; if (l.ctx) l.auto = true; });
+		c.fix = c.ctx.some(Boolean);
+		c.model.forEach((l) => { l.chg = c.fix && !l.ctx && !!l.note; });
+		c.steps = c.model.filter((l) => l.note && !l.ctx);
 	}
 }
 
@@ -138,7 +141,9 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const tokHTML = (tok) => (tok.k === 'ws' ? esc(tok.t) : `<span class="t-${tok.k}">${esc(tok.t)}</span>`);
 const hl = (tokens) => tokens.map(tokHTML).join('');
 const lineHTML = (l) => (l.blank ? ' ' : `<span class="ind">${l.indent}</span>${hl(l.tokens)}`);
-const codeBlock = (lines) => lines.map((l) => `<div class="ln">${lineHTML(l)}</div>`).join('');
+const lnCls = (l) => 'ln' + (l.ctx ? ' ctx' : '') + (l.chg ? ' chg' : '');
+const codeBlock = (lines) => lines.map((l) => `<div class="${lnCls(l)}">${lineHTML(l)}</div>`).join('');
+const fixCount = (ex) => playable(ex).reduce((n, c) => n + (c.fix ? c.steps.length : 0), 0);
 
 /* ───────────────────────── juice: sound, confetti, toasts ───────────────────────── */
 
@@ -278,7 +283,7 @@ function renderHome() {
 				<div class="ring" style="--p:${m.pct}"><span>${Math.round(m.pct * 100)}<small>%</small></span></div>
 				<div class="card-body">
 					<h3>${esc(ex.name)}</h3>
-					<p>${esc(ex.file)} · ${playable(ex).length} blocks to memorise</p>
+					<p>${esc(ex.file)} · ${fixCount(ex) ? `${fixCount(ex)} lines to fix in ${playable(ex).length} blocks` : `${playable(ex).length} blocks to memorise`}</p>
 					<div class="card-meta">${starsHTML(Math.floor(m.pct * 3 + 1e-9))}<span>${m.got}/${m.max} ★</span></div>
 				</div>
 				<div class="card-go">${m.pct === 1 ? 'MASTERED' : nx && m.got ? 'CONTINUE ▸' : 'START ▸'}</div>
@@ -326,7 +331,7 @@ function renderEx(exId, tab = 'train') {
 	if (tab === 'train') {
 		const rows = ex.chunks.map((c) => {
 			if (c.given) return `<div class="row given"><div class="row-name"><b>${esc(c.title)}</b><small>given by the exam — nothing to memorise</small></div></div>`;
-			return `<div class="row"><div class="row-name"><b>${esc(c.title)}</b><small>${c.model.filter((l) => !l.blank).length} lines</small></div>${MODES.map((mode) => {
+			return `<div class="row"><div class="row-name"><b>${esc(c.title)}</b><small>${c.fix ? `${c.steps.length} changed line${c.steps.length > 1 ? 's' : ''}` : `${c.model.filter((l) => !l.blank).length} lines`}</small></div>${MODES.map((mode) => {
 				const s = stars(ex.id, c.id, mode.id);
 				const isNext = nx && nx.chunk === c.id && nx.mode === mode.id;
 				return `<button class="cell ${s ? 'done' : ''} ${isNext ? 'next' : ''}" data-act="play" data-chunk="${c.id}" data-mode="${mode.id}" title="${mode.blurb}">
@@ -335,13 +340,14 @@ function renderEx(exId, tab = 'train') {
 		}).join('');
 		const boss = stars(ex.id, BOSS, 'recall');
 		body = `
+			${fixCount(ex) ? '<p class="note fixnote">Only the lines that differ from the broken file are drilled. Everything the exam hands you unchanged is shown dimmed, as context.</p>' : ''}
 			<div class="grid">
 				<div class="row head"><div></div>${MODES.map((mode) => `<div class="col-h" title="${mode.blurb}"><b>${mode.name}</b><small>×${mode.mult} XP</small></div>`).join('')}</div>
 				${rows}
 			</div>
 			<button class="boss ${boss ? 'done' : ''}" data-act="boss">
 				<span class="boss-ico">☠</span>
-				<span class="boss-txt"><b>Boss fight — the whole file from memory</b><small>Every block in a row, no skeleton keys. This is the exam.</small></span>
+				<span class="boss-txt">${fixCount(ex) ? '<b>Boss fight — every fix in one go</b><small>The whole broken file, every changed line typed from memory. This is the exam.</small>' : '<b>Boss fight — the whole file from memory</b><small>Every block in a row, no skeleton keys. This is the exam.</small>'}</span>
 				${starsHTML(boss)}
 			</button>`;
 	} else if (tab === 'solution') {
@@ -355,7 +361,7 @@ function renderEx(exId, tab = 'train') {
 			<div class="chunk walk ${c.given ? 'given' : ''}">
 				<div class="chunk-h"><b>${esc(c.title)}</b>${c.given ? '<span class="tag">given</span>' : ''}</div>
 				<p class="walk-goal">${esc(c.goal)}</p>
-				<div class="code walk-code">${c.model.map((l) => `<div class="walk-row"><div class="ln">${lineHTML(l)}</div><div class="walk-note">${l.note ? `${esc(l.note[0])}${l.note[1] ? `<small>${esc(l.note[1])}</small>` : ''}` : ''}</div></div>`).join('')}</div>
+				<div class="code walk-code">${c.model.map((l) => `<div class="walk-row ${l.ctx ? 'ctx' : ''} ${l.chg ? 'chg' : ''}"><div class="ln">${lineHTML(l)}</div><div class="walk-note">${l.note ? `${esc(l.note[0])}${l.note[1] ? `<small>${esc(l.note[1])}</small>` : ''}` : ''}</div></div>`).join('')}</div>
 			</div>`).join('');
 	} else if (tab === 'subject') {
 		body = `<pre class="subject">${esc(ex.subject)}</pre>`;
@@ -522,6 +528,7 @@ function finish() {
 
 function playOrder() {
 	const lines = R.segs[0].model.filter((l) => !l.blank);
+	const fix = R.segs[0].fix;
 	const cards = lines.filter((l) => !l.auto).map((l, i) => ({ l, i })).sort(() => Math.random() - 0.5);
 	R.total = cards.length;
 	let idx = 0;
@@ -533,10 +540,20 @@ function playOrder() {
 		</div></div>`;
 	document.getElementById('keys').innerHTML = '<span><kbd>click</kbd> or <kbd>1</kbd>–<kbd>9</kbd> pick a line</span><span><kbd>Tab</kbd> hint</span><span><kbd>Esc</kbd> quit</span>';
 	const built = document.getElementById('built'), pool = document.getElementById('pool');
+	// Fix blocks show the whole broken function up front, with holes where the changed lines go.
+	if (fix) built.innerHTML = lines.map((l) => (l.auto ? `<div class="${lnCls(l)}">${lineHTML(l)}</div>`
+		: `<div class="ln hole"><span class="ind">${l.indent}</span><span class="skel" style="width:${Math.max(2, l.text.length)}ch"></span></div>`)).join('');
+	const rowsF = [...built.children];
 	const byI = Object.fromEntries(cards.map((c) => [c.i, c.l]));
 	const renumber = () => [...pool.children].forEach((b, n) => { b.querySelector('kbd').textContent = n < 9 ? n + 1 : ''; });
 
 	const place = (l, pop) => {
+		if (fix) {
+			const r = rowsF[lines.indexOf(l)];
+			r.className = lnCls(l) + (pop ? ' pop' : '');
+			r.innerHTML = lineHTML(l);
+			return;
+		}
 		const d = document.createElement('div');
 		d.className = 'ln' + (pop ? ' pop' : '');
 		d.innerHTML = lineHTML(l);
@@ -544,6 +561,13 @@ function playOrder() {
 		built.lastElementChild.scrollIntoView({ block: 'nearest' });
 	};
 	const advance = () => {
+		if (fix) {
+			while (idx < lines.length && lines[idx].auto) idx++;
+			if (idx >= lines.length) return setTimeout(finish, 350);
+			rowsF[idx].classList.add('cur');
+			rowsF[idx].scrollIntoView({ block: 'nearest' });
+			return;
+		}
 		while (idx < lines.length && lines[idx].auto) place(lines[idx++], false);
 		if (idx >= lines.length) { built.lastElementChild.remove(); setTimeout(finish, 350); }
 	};
@@ -552,7 +576,7 @@ function playOrder() {
 		if (byI[btn.dataset.i].text === lines[idx].text) {
 			const was = lines[idx];
 			place(lines[idx++], true);
-			good(built.lastElementChild.previousElementSibling);
+			good(fix ? rowsF[idx - 1] : built.lastElementChild.previousElementSibling);
 			btn.classList.add('gone');
 			setTimeout(() => { btn.remove(); renumber(); }, 180);
 			advance();
@@ -578,6 +602,7 @@ function playGaps() {
 	const lines = R.segs[0].model;
 	const cands = [];
 	lines.forEach((l, li) => l.tokens.forEach((tok, ti) => {
+		if (l.ctx) return;
 		const inc = /^#\s*include/.test(l.text);
 		if (tok.k === 'ws' || tok.k === 'com') return;
 		if (tok.k === 'op' && tok.t.length < 2) return;
@@ -588,7 +613,7 @@ function playGaps() {
 	const gaps = new Set(cands.sort(() => Math.random() - 0.5).slice(0, n));
 	R.total = gaps.size;
 	const stage = document.getElementById('stage');
-	stage.innerHTML = `<div class="pane wide"><div class="pane-h">Fill every gap</div><div class="code">${lines.map((l, li) => `<div class="ln">${l.blank ? ' ' : `<span class="ind">${l.indent}</span>` + l.tokens.map((tok, ti) => (gaps.has(li + ':' + ti)
+	stage.innerHTML = `<div class="pane wide"><div class="pane-h">Fill every gap</div><div class="code">${lines.map((l, li) => `<div class="${lnCls(l)}">${l.blank ? ' ' : `<span class="ind">${l.indent}</span>` + l.tokens.map((tok, ti) => (gaps.has(li + ':' + ti)
 		? `<input class="gap" data-li="${li}" data-a="${esc(tok.t)}" style="width:${tok.t.length + 1}ch" maxlength="${tok.t.length + 4}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`
 		: tokHTML(tok))).join('')}</div>`).join('')}</div></div>`;
 	document.getElementById('keys').innerHTML = '<span>type the missing token — it locks in when correct</span><span><kbd>Tab</kbd> reveal</span><span><kbd>Esc</kbd> quit</span>';
@@ -641,6 +666,7 @@ function playRecall() {
 	stage.innerHTML = `<div class="pane wide"><div class="pane-h">${boss ? 'Write the whole file from memory' : 'Type each line from memory'}</div><div class="code recall">${R.segs.map((seg) => {
 		const rows = seg.model.map((l) => {
 			flat.push(l);
+			if (l.ctx) return `<div class="${lnCls(l)}">${lineHTML(l)}</div>`;
 			return `<div class="ln future">${l.blank ? ' ' : `<span class="ind">${l.indent}</span><span class="skel" style="width:${boss ? 6 : Math.max(2, l.text.length)}ch"></span>`}</div>`;
 		}).join('');
 		return (R.segs.length > 1 ? `<div class="seg-h">${esc(seg.title)}</div>` : '') + rows;
@@ -650,7 +676,7 @@ function playRecall() {
 	R.total = flat.filter((l) => !l.blank && !l.auto).length;
 	let idx = 0, input = null, wrong = false, slips = 0, lastDone = null;
 
-	const reveal = (i, pop) => { rows[i].className = 'ln' + (pop ? ' pop' : ''); rows[i].innerHTML = lineHTML(flat[i]); };
+	const reveal = (i, pop) => { rows[i].className = lnCls(flat[i]) + (pop ? ' pop' : ''); rows[i].innerHTML = lineHTML(flat[i]); };
 	const advance = () => {
 		while (idx < flat.length && (flat[idx].blank || flat[idx].auto)) reveal(idx++, false);
 		if (idx >= flat.length) { input = null; logic(null, lastDone); return setTimeout(finish, 350); }

@@ -404,3 +404,14 @@ kbd {
 	.logic-goal { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .logic-next i { animation: none; } }
+
+/* ── fix exercises: unchanged context vs changed lines ── */
+.ln.ctx { opacity: .42; }
+.ln.chg { background: rgba(255, 209, 102, .07); box-shadow: inset 3px 0 0 var(--gold); }
+.ln.hole { opacity: .9; }
+.ln.hole.cur .skel { background: linear-gradient(90deg, rgba(0, 229, 195, .25), rgba(0, 229, 195, .5), rgba(0, 229, 195, .25)); background-size: 200% 100%; }
+.walk-row.ctx { opacity: .5; }
+.walk-row.chg { background: rgba(255, 209, 102, .07); box-shadow: inset 3px 0 0 var(--gold); }
+.walk-row.chg .walk-note { color: var(--text); }
+.walk-row .ln.chg, .walk-row .ln.ctx { background: none; box-shadow: none; opacity: 1; }
+.fixnote { padding: 10px 14px; border-radius: 12px; border: 1px dashed rgba(255, 209, 102, .4); color: var(--gold); }

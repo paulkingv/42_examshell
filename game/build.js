@@ -12,6 +12,7 @@
  * Logic notes feed the Logic box and the Logic tab:
  *   //! text                  -> what the block is for (one per block)
  *   //? step || why           -> plain-language step for the next code line; "|| why" is optional
+ *   //~ text                  -> same, but the line is unchanged from the exam's file: shown, not drilled
  */
 const fs = require('fs');
 const path = require('path');
@@ -56,25 +57,26 @@ function parseChunks(src, file) {
 	let pending = null;
 	for (const line of src.replace(/\r/g, '').split('\n')) {
 		const m = line.match(/^\/\/#\s*(.+)$/);
-		const note = line.match(/^\/\/([?!])\s*(.+)$/);
+		const note = line.match(/^\/\/([?!~])\s*(.+)$/);
 		if (m) {
 			const [id, title, flag] = m[1].split('|').map((s) => s.trim());
-			cur = { id, title: title || id, given: flag === 'given', goal: '', lines: [], notes: [] };
+			cur = { id, title: title || id, given: flag === 'given', goal: '', lines: [], notes: [], ctx: [] };
 			chunks.push(cur);
 		} else if (note && cur) {
 			if (note[1] === '!') cur.goal = note[2].trim();
-			else pending = note[2].split('||').map((s) => s.trim());
+			else pending = { text: note[2].split('||').map((s) => s.trim()), ctx: note[1] === '~' };
 		} else if (cur) {
 			cur.lines.push(line);
-			cur.notes.push(pending);
+			cur.notes.push(pending && pending.text);
+			cur.ctx.push(!!(pending && pending.ctx));
 			pending = null;
 		} else if (line.trim()) {
 			throw new Error(`${file}: code before the first //# marker`);
 		}
 	}
 	for (const c of chunks) {
-		while (c.lines.length && !c.lines[0].trim()) { c.lines.shift(); c.notes.shift(); }
-		while (c.lines.length && !c.lines[c.lines.length - 1].trim()) { c.lines.pop(); c.notes.pop(); }
+		while (c.lines.length && !c.lines[0].trim()) { c.lines.shift(); c.notes.shift(); c.ctx.shift(); }
+		while (c.lines.length && !c.lines[c.lines.length - 1].trim()) { c.lines.pop(); c.notes.pop(); c.ctx.pop(); }
 		if (!c.goal) throw new Error(`${file}: block "${c.id}" has no //! goal`);
 		c.lines.forEach((l, i) => {
 			const plain = !l.trim() || /^[{}]$/.test(l.trim());
@@ -83,6 +85,14 @@ function parseChunks(src, file) {
 		});
 	}
 	return chunks;
+}
+
+// Lines marked //~ claim to be untouched exam code, so they must appear in the original file.
+function checkContext(chunks, original, file) {
+	const have = new Set(original.split('\n').map((l) => l.trim()));
+	for (const c of chunks) c.lines.forEach((l, i) => {
+		if (c.ctx[i] && !have.has(l.trim())) throw new Error(`${file}: //~ line "${l.trim()}" is not in the original`);
+	});
 }
 
 function allowed(subject) {
@@ -98,14 +108,17 @@ const data = {
 			name: level.name,
 			exercises: level.exercises.map((ex) => {
 				const subject = res(ex.subject).replace(/\r/g, '').trimEnd();
+				const original = ex.original ? res(ex.original).replace(/\r/g, '').trimEnd() : null;
+				const chunks = parseChunks(sol(rank.id, ex.solution), ex.solution);
+				if (original) checkContext(chunks, original, ex.solution);
 				return {
 					id: ex.id,
 					name: ex.name,
 					file: ex.solution,
 					allowed: allowed(subject),
 					subject,
-					original: ex.original ? res(ex.original).replace(/\r/g, '').trimEnd() : null,
-					chunks: parseChunks(sol(rank.id, ex.solution), ex.solution),
+					original,
+					chunks,
 				};
 			}),
 		})),

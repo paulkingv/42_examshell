@@ -93,7 +93,9 @@ Then a **Boss fight** per exercise: the whole file from memory. You earn XP, com
 
 While you train, a **Logic** box at the bottom explains the program in plain words: it hints at what the next line has to do, and once you get it right it shows what that step was for. The **Logic** tab of each exercise shows the whole walkthrough next to the code.
 
-The reference solutions live in `game/solutions/` (`//# id | Title` markers split them into blocks, `| given` marks code the exam hands out, `//! goal` and `//? step || why` lines hold the logic notes). After editing them, run `node game/build.js` to regenerate `game/data.js`.
+The reference solutions live in `game/solutions/` (`//# id | Title` markers split them into blocks, `| given` marks code the exam hands out, `//! goal` and `//? step || why` lines hold the logic notes, and `//~ step` marks a line that is unchanged from the exam's broken file, shown but not drilled).
+
+For **broken_gnl** the solution is the exam's broken file with only the fixes applied, so you only drill the 17 lines that change; the rest is shown dimmed as context. `build.js` checks that every `//~` line really appears in the broken original. After editing them, run `node game/build.js` to regenerate `game/data.js`.
 
 ## 📝 Workspace
 
