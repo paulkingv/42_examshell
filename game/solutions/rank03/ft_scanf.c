@@ -1,8 +1,8 @@
 //# headers | Headers | given
 //! Given by the exam: variable arguments, FILE streams, and isspace / isdigit.
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <ctype.h>
 
 //# match_space | match_space()
 //! Skip every blank character waiting in the stream, and leave the first non-blank one unread.
@@ -157,17 +157,17 @@ int	match_conv(FILE *f, const char **format, va_list ap)
 	switch (**format)
 	{
 		case 'c':
-			return scan_char(f, ap);
+			return (scan_char(f, ap));
 		case 'd':
 			match_space(f);
-			return scan_int(f, ap);
+			return (scan_int(f, ap));
 		case 's':
 			match_space(f);
-			return scan_string(f, ap);
+			return (scan_string(f, ap));
 		case EOF:
-			return -1;
+			return (-1);
 		default:
-			return -1;
+			return (-1);
 	}
 }
 
@@ -179,7 +179,7 @@ int	ft_vfscanf(FILE *f, const char *format, va_list ap)
 
 	int c = fgetc(f);
 	if (c == EOF)
-		return EOF;
+		return (EOF);
 	ungetc(c, f);
 
 	while (*format)
@@ -203,8 +203,8 @@ int	ft_vfscanf(FILE *f, const char *format, va_list ap)
 	}
 
 	if (ferror(f))
-		return EOF;
-	return nconv;
+		return (EOF);
+	return (nconv);
 }
 
 //# ft_scanf | ft_scanf()
@@ -222,5 +222,5 @@ int	ft_scanf(const char *format, ...)
 //? Close the argument list
 	va_end(ap);
 //? Return the number of conversions
-	return ret;
+	return (ret);
 }

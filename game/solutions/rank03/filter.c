@@ -2,16 +2,16 @@
 //! Everything the file needs before any code: the GNU switch, the headers for the allowed functions, and a default read size.
 //? Turn on the GNU extras, before any header || memmem is a GNU extension. The define only works if it comes first.
 #define _GNU_SOURCE
-//? Header for read and write
-#include <unistd.h>
-//? Header for realloc and free
-#include <stdlib.h>
-//? Header for perror
-#include <stdio.h>
-//? Header for strlen and memmove
-#include <string.h>
 //? Header for errno || perror prints the message that belongs to errno.
 #include <errno.h>
+//? Header for perror
+#include <stdio.h>
+//? Header for realloc and free
+#include <stdlib.h>
+//? Header for strlen and memmove
+#include <string.h>
+//? Header for read and write
+#include <unistd.h>
 
 //? Only if nobody chose a read size at compile time... || The grader may compile with -D BUFFER_SIZE=xx. This guard keeps their value.
 #ifndef BUFFER_SIZE

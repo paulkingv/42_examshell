@@ -101,8 +101,8 @@ function tokenize(text) {
 	return out;
 }
 
-// Whitespace-insensitive form used to compare typed code with the answer.
-function canon(text) {
+// Whitespace-insensitive form of a line; hints walk along this one.
+function canonRaw(text) {
 	let out = '';
 	for (const { t, k } of tokenize(text)) {
 		if (k === 'ws') continue;
@@ -111,6 +111,25 @@ function canon(text) {
 		out += piece;
 	}
 	return out;
+}
+
+// Form used to judge typed code: also treats `return x;` and `return (x);` as the same line.
+function canon(text) {
+	const c = canonRaw(text);
+	const m = c.match(/^return\((.*)\);$/);
+	return m && balanced(m[1]) ? `return${/^\w/.test(m[1]) ? ' ' : ''}${m[1]};` : c;
+}
+
+function balanced(s) {
+	let d = 0, q = '';
+	for (let i = 0; i < s.length; i++) {
+		const ch = s[i];
+		if (q) { if (ch === '\\') i++; else if (ch === q) q = ''; continue; }
+		if (ch === '"' || ch === "'") q = ch;
+		else if (ch === '(') d++;
+		else if (ch === ')' && --d < 0) return false;
+	}
+	return d === 0;
 }
 
 function lineModel(raw) {
@@ -122,8 +141,15 @@ function lineModel(raw) {
 		auto: /^[{}]$/.test(text),
 		tokens: tokenize(text),
 		canon: canon(text),
+		hint: canonRaw(text),
 	};
 }
+
+// Neighbouring #includes, and neighbouring declarations, can be written in any order.
+// A declaration still has to come after the ones its initialiser reads, and two lines
+// that consume the same stream or argument list (fgetc, va_arg, read...) keep their order.
+const DECL = /^(?:(?:static|const|unsigned|signed)\s+)*(?:int|char|float|double|long|short|size_t|ssize_t|FILE|va_list|t_city|void)\b[^(;=]*?(\w+)\s*(?:\[[^\]]*\])?\s*(?:=.*)?;$/;
+const EFFECT = /\b(fgetc|getc|getchar|va_arg|read|scanf|fscanf)\s*\(/;
 
 for (const rank of DATA.ranks) for (const level of rank.levels) for (const ex of level.exercises) {
 	EXS[ex.id] = ex;
@@ -134,8 +160,67 @@ for (const rank of DATA.ranks) for (const level of rank.levels) for (const ex of
 		c.fix = c.ctx.some(Boolean);
 		c.model.forEach((l) => { l.chg = c.fix && !l.ctx && !!l.note; });
 		c.steps = c.model.filter((l) => l.note && !l.ctx);
+		groupChunk(c);
 	}
 }
+
+/* ── lines that may be written in any order ── */
+
+function orderKind(l) {
+	if (/^#\s*include\b/.test(l.text)) return 'inc';
+	const m = l.text.match(DECL);
+	if (!m) return null;
+	l.name = m[1];
+	l.uses = l.text.slice(l.text.indexOf(m[1]) + m[1].length).match(/[A-Za-z_]\w*/g) || [];
+	l.effect = (l.text.match(EFFECT) || [])[1];
+	return 'decl';
+}
+
+function groupChunk(c) {
+	let run = [];
+	const flush = () => {
+		if (run.length > 1) {
+			const g = { members: run.slice(), kind: run[0].kind };
+			run.forEach((l, i) => {
+				l.grp = g;
+				l.deps = run.slice(0, i).filter((a) => (a.name && l.uses.includes(a.name)) || (a.effect && a.effect === l.effect));
+			});
+			g.strict = run.some((l) => l.deps.length);
+		}
+		run = [];
+	};
+	for (const l of c.model) {
+		const k = c.given || l.ctx || l.blank ? null : orderKind(l);
+		if (!k || (run.length && run[0].kind !== k)) flush();
+		if (k) { l.kind = k; run.push(l); }
+	}
+	flush();
+}
+
+// Which group kinds may be written in any order: includes everywhere, declarations only in
+// Recall (and the boss). Order mode drills the written order; Gaps keeps every line in place.
+const FREE = { order: ['inc'], gaps: [], gaps2: [], recall: ['inc', 'decl'] };
+const isFree = (g) => !!g && !!R && FREE[R.mode.id].includes(g.kind);
+
+// The lines that may go at position idx: just arr[idx], unless it sits in an any-order group.
+function choices(arr, idx) {
+	const l = arr[idx], g = l.grp;
+	if (!isFree(g)) return [l];
+	const gs = arr.findIndex((x) => x.grp === g);
+	const done = arr.slice(gs, idx);
+	return arr.slice(idx, gs + g.members.length).filter((x) => x.deps.every((d) => done.includes(d)));
+}
+
+// Move the chosen line to position idx; the lines still to come keep their written order.
+function take(arr, idx, l) {
+	arr.splice(arr.indexOf(l, idx), 1);
+	arr.splice(idx, 0, l);
+}
+
+const stepNo = (arr, idx) => {
+	const c = arr[idx].chunk;
+	return arr.slice(0, idx).filter((x) => x.chunk === c && c.steps.includes(x)).length + 1;
+};
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const tokHTML = (tok) => (tok.k === 'ws' ? esc(tok.t) : `<span class="t-${tok.k}">${esc(tok.t)}</span>`);
@@ -239,12 +324,13 @@ function topbar() {
 }
 
 // The Logic box: what the finished step did, and a plain-language hint for the next one.
-function logic(next, done) {
+function logic(next, done, at) {
 	const box = document.getElementById('logic');
 	const ref = next || done;
 	if (!box || !ref) return;
 	const c = ref.chunk;
-	const no = next ? c.steps.indexOf(next) + 1 : c.steps.length;
+	const no = next ? at || c.steps.indexOf(next) + 1 : c.steps.length;
+	const g = next && isFree(next.grp) ? next.grp : null;
 	box.classList.toggle('off', !!S.noLogic);
 	box.innerHTML = `
 		<div class="logic-h">
@@ -254,6 +340,7 @@ function logic(next, done) {
 		<div class="logic-body">
 			<p class="logic-goal">${esc(c.goal)}</p>
 			${done && done.note ? `<p class="logic-done"><i>✓</i><span>${esc(done.note[0])}${done.note[1] ? `<small>${esc(done.note[1])}</small>` : ''}</span></p>` : ''}
+			${g ? `<p class="logic-any"><i>⇅</i><span>Any order works for these ${g.members.length} ${g.kind === 'inc' ? 'includes' : 'declarations'}${g.strict ? ', as long as each one comes after the variables it uses' : ''}.</span></p>` : ''}
 			${next ? `<p class="logic-next"><i>▸</i><span><em>Next</em>${esc(next.note[0])}</span></p>` : '<p class="logic-next end"><i>★</i><span>Block complete.</span></p>'}
 		</div>`;
 }
@@ -573,14 +660,16 @@ function playOrder() {
 	};
 	const pick = (btn) => {
 		if (!btn || R.over || btn.classList.contains('gone')) return;
-		if (byI[btn.dataset.i].text === lines[idx].text) {
+		const hit = choices(lines, idx).find((l) => l.text === byI[btn.dataset.i].text);
+		if (hit) {
+			take(lines, idx, hit);
 			const was = lines[idx];
 			place(lines[idx++], true);
 			good(fix ? rowsF[idx - 1] : built.lastElementChild.previousElementSibling);
 			btn.classList.add('gone');
 			setTimeout(() => { btn.remove(); renumber(); }, 180);
 			advance();
-			logic(lines[idx] || null, was);
+			logic(lines[idx] || null, was, lines[idx] && stepNo(lines, idx));
 		} else bad(btn);
 	};
 	R.onClick = (e) => pick(e.target.closest('.line-card'));
@@ -593,7 +682,7 @@ function playOrder() {
 	};
 	renumber();
 	advance();
-	logic(lines[idx], null);
+	logic(lines[idx], null, stepNo(lines, idx));
 }
 
 /* ── mode: gaps ── */
@@ -681,7 +770,7 @@ function playRecall() {
 		while (idx < flat.length && (flat[idx].blank || flat[idx].auto)) reveal(idx++, false);
 		if (idx >= flat.length) { input = null; logic(null, lastDone); return setTimeout(finish, 350); }
 		const l = flat[idx];
-		logic(l, lastDone && lastDone.chunk === l.chunk ? lastDone : null);
+		logic(l, lastDone && lastDone.chunk === l.chunk ? lastDone : null, stepNo(flat, idx));
 		rows[idx].className = 'ln cur';
 		rows[idx].innerHTML = `<span class="ind">${l.indent}</span><input class="type" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><span class="nudge"></span>`;
 		input = rows[idx].querySelector('input');
@@ -701,7 +790,18 @@ function playRecall() {
 	const semis = (s) => (s.match(/;/g) || []).length;
 	const check = (lineEnd) => {
 		const l = flat[idx], c = canon(input.value);
-		if (c === l.canon) return accept();
+		const hit = choices(flat, idx).find((x) => x.canon === c);
+		if (hit) {
+			if (hit !== l) {
+				take(flat, idx, hit);
+				// The skeletons after this line now stand for different lines.
+				for (let k = idx + 1; flat[k] && flat[k].grp === hit.grp; k++) {
+					const sk = rows[k].querySelector('.skel');
+					if (sk && !boss) sk.style.width = Math.max(2, flat[k].text.length) + 'ch';
+				}
+			}
+			return accept();
+		}
 		const finished = lineEnd || (c.endsWith(';') && semis(c) >= semis(l.canon));
 		if (!finished || wrong) return;
 		bad(input);
@@ -714,10 +814,11 @@ function playRecall() {
 		if (!input) return;
 		if (e.key === 'Tab') {
 			e.preventDefault();
-			const l = flat[idx], c = canon(input.value);
-			let k = 0;
-			while (k < c.length && k < l.canon.length && c[k] === l.canon[k]) k++;
-			const tok = l.tokens.find((t) => t.k !== 'ws' && canon(l.text.slice(0, t.end)).length > k);
+			const c = canonRaw(input.value);
+			const lcp = (h) => { let k = 0; while (k < c.length && k < h.length && c[k] === h[k]) k++; return k; };
+			const l = choices(flat, idx).reduce((a, b) => (lcp(b.hint) > lcp(a.hint) ? b : a));
+			const k = lcp(l.hint);
+			const tok = l.tokens.find((t) => t.k !== 'ws' && canonRaw(l.text.slice(0, t.end)).length > k);
 			if (!tok) return;
 			hinted();
 			input.value = l.text.slice(0, tok.end);

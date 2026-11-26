@@ -16,11 +16,11 @@ char *ft_strchr(char *s, int c)
 //~ Did we stop on c?
   if (s[i] == c)
 //~ Return a pointer to that spot
-    return s + i;
+    return (s + i);
 //~ Otherwise...
   else
 //~ ...c is not in the string
-    return NULL;
+    return (NULL);
 }
 
 //# ft_memcpy | ft_memcpy() · 2 fixes
@@ -33,7 +33,7 @@ void *ft_memcpy(void *dest, const void *src, size_t n)
 //? Copy the byte at index n || Was: [n - 1] on both sides. n is already the right index now.
     ((char *)dest)[n] = ((char *)src)[n];
 //~ Return the destination
-  return dest;
+  return (dest);
 }
 
 //# ft_strlen | ft_strlen() · 1 fix
@@ -46,7 +46,7 @@ size_t ft_strlen(char *s)
 //? Is there no string at all? || New line. str_append_mem measures the line, which starts as NULL.
   if (!s)
 //? Then its length is 0 || New line.
-    return 0;
+    return (0);
 //~ While we are not on the end mark
   while (*s)
   {
@@ -56,7 +56,7 @@ size_t ft_strlen(char *s)
     res++;
   }
 //~ Return the count
-  return res;
+  return (res);
 }
 
 //# str_append_mem | str_append_mem() | given
@@ -66,20 +66,20 @@ int str_append_mem(char **s1, char *s2, size_t size2)
   size_t size1 = ft_strlen(*s1);
   char *tmp = malloc(size2 + size1 + 1);
   if (!tmp)
-    return 0;
+    return (0);
   ft_memcpy(tmp, *s1, size1);
   ft_memcpy(tmp + size1, s2, size2);
   tmp[size1 + size2] = '\0';
   free(*s1);
   *s1 = tmp;
-  return 1;
+  return (1);
 }
 
 //# str_append_str | str_append_str() | given
 //! Unchanged: the same, for a whole string.
 int str_append_str(char **s1, char *s2)
 {
-  return str_append_mem(s1, s2, ft_strlen(s2));
+  return (str_append_mem(s1, s2, ft_strlen(s2)));
 }
 
 //# ft_memmove | ft_memmove() · 4 fixes
@@ -90,11 +90,11 @@ void *ft_memmove(void *dest, const void *src, size_t n)
 //~ Is the destination after the source?
   if (dest > src)
 //? Then copy backwards with ft_memcpy || Was: return ft_memmove(dest, src, n); It called itself and never returned.
-    return ft_memcpy(dest, src, n);
+    return (ft_memcpy(dest, src, n));
 //~ Is it the same place?
   else if (dest == src)
 //~ Then there is nothing to copy
-    return dest;
+    return (dest);
 //? A forward index, starting at 0 || Was: size_t i = ft_strlen((char *)src) - 1; The count is n, and we go forward.
   size_t i = 0;
 //? While there are bytes left || Was: while (i >= 0). A size_t is never below 0, so that never ended.
@@ -106,7 +106,7 @@ void *ft_memmove(void *dest, const void *src, size_t n)
     i++;
   }
 //~ Return the destination
-  return dest;
+  return (dest);
 }
 
 //# gnl | get_next_line() · 3 fixes
@@ -154,10 +154,10 @@ char *get_next_line(int fd)
 //~ ...free the line
     free(ret);
 //~ ...and give up
-    return NULL;
+    return (NULL);
   }
 //? Slide what comes after the break to the front of the buffer || New line. Without it the next call returns the same line again. The +1 carries the end mark along.
   ft_memmove(b, tmp + 1, ft_strlen(tmp + 1) + 1);
 //~ Return the finished line
-  return ret;
+  return (ret);
 }

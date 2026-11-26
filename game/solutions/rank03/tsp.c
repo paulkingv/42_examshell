@@ -1,9 +1,9 @@
 //# headers | Headers & t_city | given
 //! Given by the exam: the headers and the city type, an x and a y.
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include <float.h>
 
 typedef struct s_city
 {

@@ -95,6 +95,8 @@ While you train, a **Logic** box at the bottom explains the program in plain wor
 
 The reference solutions live in `game/solutions/` (`//# id | Title` markers split them into blocks, `| given` marks code the exam hands out, `//! goal` and `//? step || why` lines hold the logic notes, and `//~ step` marks a line that is unchanged from the exam's broken file, shown but not drilled).
 
+Conventions in every solution, so there is one way to remember them: `#include` lines are in **alphabetical order** (after `#define _GNU_SOURCE`, which must come first), and every value is returned **in parentheses**, `return (x);`. When judging, the order of neighbouring `#include` lines never matters. Neighbouring declarations must be in the written order in **Order** mode, but any order is accepted in **Recall** and the boss fight (a declaration still has to come after a variable it uses). **Gaps** keeps every line in place. `return x;` counts the same as `return (x);`.
+
 For **broken_gnl** the solution is the exam's broken file with only the fixes applied, so you only drill the 17 lines that change; the rest is shown dimmed as context. `build.js` checks that every `//~` line really appears in the broken original. After editing them, run `node game/build.js` to regenerate `game/data.js`.
 
 ## 📝 Workspace

@@ -87,11 +87,26 @@ function parseChunks(src, file) {
 	return chunks;
 }
 
+// Spacing and the parentheses of `return (x);` are style, not code changes.
+function sameCode(line) {
+	const t = line.replace(/\s+/g, '');
+	const m = t.match(/^return\((.*)\);$/);
+	return m && balanced(m[1]) ? `return${m[1]};` : t;
+}
+function balanced(s) {
+	let d = 0;
+	for (const ch of s) {
+		d += ch === '(' ? 1 : ch === ')' ? -1 : 0;
+		if (d < 0) return false;
+	}
+	return d === 0;
+}
+
 // Lines marked //~ claim to be untouched exam code, so they must appear in the original file.
 function checkContext(chunks, original, file) {
-	const have = new Set(original.split('\n').map((l) => l.trim()));
+	const have = new Set(original.split('\n').map(sameCode));
 	for (const c of chunks) c.lines.forEach((l, i) => {
-		if (c.ctx[i] && !have.has(l.trim())) throw new Error(`${file}: //~ line "${l.trim()}" is not in the original`);
+		if (c.ctx[i] && !have.has(sameCode(l))) throw new Error(`${file}: //~ line "${l.trim()}" is not in the original`);
 	});
 }
 
